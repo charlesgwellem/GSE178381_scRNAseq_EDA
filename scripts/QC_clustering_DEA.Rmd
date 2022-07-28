@@ -358,7 +358,7 @@ item[!item %in% as.character(c(1:23, "X", "Y", "MT"))] <- "other"
 #### **Filter and keep only the protein coding genes. **
 
 ```{r protein_coding}
-# in order to focus only on protein coding genes
+# filter out genes that are non-protein coding
 
 dim(filtered_seurat) # 22657 123207
 sel <- annot[match(rownames(filtered_seurat), annot[, 1]), 2] == "protein_coding"
