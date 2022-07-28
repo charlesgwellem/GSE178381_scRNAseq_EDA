@@ -427,7 +427,8 @@ filtered_seurat_phase <- FindNeighbors(filtered_seurat_phase, dims = 1:2)
 
 filtered_seurat_phase <- FindClusters(filtered_seurat_phase, resolution = 0.5)
 
-# If you haven't installed UMAP, you can do so via reticulate::py_install(packages =
+# If you haven't installed UMAP, you can do so via 
+# reticulate::py_install(packages =
 # 'umap-learn')
 library(randomcoloR)
 
