@@ -1,0 +1,36 @@
+---
+title: "QC_clustering_DEA"
+author: "Charles"
+date: '2022-07-28'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Description
+
+This is a public data set with accession number [GSE178318](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi). It consists of a Single-Cell Atlas of Liver Metastases of Colorectal Cancer to Reveal the Reprogramming of the Tumor Microenvironment in Response to Preoperative Chemotherapy.
+
+The goals will change progressively, but for now, one of the principal goals is to check the expression of lymphotoxins in metastasised liver cancer cells from CRC.
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Loading libraries
+
+```{r libraries}
+library(Seurat)
+library(SeuratObject)
+library(SeuratWrappers)
+library(SeuratDisk)
+library(ggplot2)
+library(tidyverse)
+```
+
+## 1. Preparation for quality control
+
+```{}
+``` 
