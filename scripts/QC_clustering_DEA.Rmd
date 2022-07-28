@@ -28,9 +28,34 @@ library(SeuratWrappers)
 library(SeuratDisk)
 library(ggplot2)
 library(tidyverse)
+library(openxlsx)
+library(Matrix)
 ```
 
 ## 1. Preparation for quality control
 
-```{}
+### 1. Load in the raw data and add relevant data and metadata
+
+```{r data_loading}
+# check files
+list.files("rawData")
+
+barcodes <- read.table("rawData/GSE178318_barcodes.tsv", header = FALSE, sep = "\t")
+head(barcodes)
+
+genes <- read.table("rawData/GSE178318_genes.tsv", header = FALSE, sep = "\t")
+head(genes)
+
+raw_matrix <- readMM("rawData/GSE178318_matrix.mtx")
+dim(raw_matrix)
+
+# set row names and column names
+rownames(raw_matrix) <- genes$V2
+colnames(raw_matrix) <- barcodes$V1
+
+# verify row names and column names 
+rownames(raw_matrix)[1:10]
+colnames(raw_matrix)[1:10]
 ``` 
+
+The data set has been loading and prepared. Now I proceed to the quality control.
