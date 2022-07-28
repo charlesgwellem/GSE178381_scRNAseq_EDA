@@ -504,15 +504,53 @@ unique(filtered_seurat$group)
 split_seurat <- split_seurat[unique(filtered_seurat$group)]
 
 for (i in 1:length(split_seurat)) {
+  
     split_seurat[[i]] <- NormalizeData(split_seurat[[i]], verbose = TRUE)
     split_seurat[[i]] <- CellCycleScoring(split_seurat[[i]], 
                                           g2m.features= cc.genes.updated.2019$g2m.genes, 
                                           s.features=cc.genes.updated.2019$s.genes)
-    
     split_seurat[[i]]$CC.Difference <- split_seurat[[i]]$S.Score - split_seurat[[i]]$G2M.Score
-
     split_seurat[[i]] <- SCTransform(split_seurat[[i]], variable.features.n = 5000,
                                      vars.to.regress = c("CC.Difference", "mitoRatio"))
 }
 ```
+
+## Integration
+
+I perform integration across the **group** variable where I logically expect batch effects. This integration method makes use of mutual nearest neighbour. I want to identify comparable cell types and if possible present in all subjects.
+
+Integration is a powerful method that uses these shared sources of greatest variation to identify shared subpopulations across conditions groups <https://www.sciencedirect.com/science/article/pii/S0092867419305598?via%3Dihub> . The goal of integration is to ensure that the cell types of one condition/dataset align with the same celltypes of the other conditions/datasets (e.g. control macrophages align with IPF macrophages). But in this data set, I expect same cells to cluster differently depending on their cncerous state.
+
+```{r integration}
+# Select the most variable features to use for integration
+integ_features <- SelectIntegrationFeatures(object.list = split_seurat, 
+                                            nfeatures = 5000) 
+
+# Prepare the SCT list object for integration
+split_seurat <- PrepSCTIntegration(object.list = split_seurat, 
+                                   anchor.features = integ_features)
+
+# do pca before finding integration achors
+split_seurat <- lapply(X = split_seurat, FUN = RunPCA, 
+                       verbose = FALSE, features = integ_features)
+
+# Find best buddies - can take a while to run
+integ_anchors <- FindIntegrationAnchors(object.list = split_seurat, 
+                                        normalization.method = "SCT", dims = 1:50,
+                                        anchor.features = integ_features,
+                                        reduction = "rpca")
+# integrate across libraries
+seurat_integrated <- IntegrateData(anchorset = integ_anchors, 
+                                   dims = 1:50,
+                                   normalization.method = "SCT", verbose = T)
+saveRDS(seurat_integrated,
+        paste0(objectsdir, 
+                         "/","seurat_filtered_and_integrated", 
+                         ".rds"),
+        compressm = TRUE)
+
+rm(integ_anchors, seurat_rna, split_seurat, seurat)
+gc()
+```
+
 
