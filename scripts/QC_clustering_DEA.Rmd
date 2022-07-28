@@ -375,3 +375,71 @@ rm(rel_expression)
 gc()
 ```
 
+### **Cell cycle scoring and clustering without integration.**
+
+It is recommended to check the cell cycle phase before performing the sctransform method. Since the counts need to be comparable between cells and each cell has a different number of total UMIs, we do a rough normalization by dividing by total counts per cell and taking the natural log. This method isn’t as accurate as the sctransform method that we will use ultimately to identify cell clusters, but it is sufficient to explore sources of variation in our data.
+
+We here perform cell cycle scoring. To score a gene list, the algorithm calculates the difference of mean expression of the given list and the mean expression of reference genes. To build the reference, the function randomly chooses a bunch of genes matching the distribution of the expression of the given list. Cell cycle scoring with Seurat adds three slots in data, a score for S phase, a score for G2M phase and the predicted cell cycle phase. The Seurat package provides a list of human G2M and S phase genes in cc.genes.
+
+```{r cell_cycle}
+# perform normal normalisation
+filtered_seurat_phase <- NormalizeData(filtered_seurat)
+
+filtered_seurat_phase <- CellCycleScoring(
+  object = filtered_seurat_phase,
+  g2m.features = cc.genes$g2m.genes,
+  s.features = cc.genes$s.genes)
+
+# identify most variable genes
+# Identify the most variable genes
+filtered_seurat_phase <- FindVariableFeatures(filtered_seurat_phase, 
+                                               selection.method = "vst",
+                                               nfeatures = 5000, 
+                                               verbose = FALSE)
+
+# Scale the counts
+filtered_seurat_phase <- ScaleData(filtered_seurat_phase)
+
+# Perform PCA
+filtered_seurat_phase <- RunPCA(filtered_seurat_phase, npcs = 20)
+
+# Plot the PCA colored by cell cycle phase
+DimPlot(filtered_seurat_phase,
+        reduction = "pca",
+        group.by= "Phase",
+        split.by = "Phase")
+ggsave(filename=paste0(figuresdir, "/", "cell_cycle",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+Results show that there might be differences due to cell cycle. A cluster is present at G1 phase, which is apparently absent or diminished at G2M and S phases.
+
+```{r unintegrated_clustering}
+
+ElbowPlot(filtered_seurat_phase)
+
+filtered_seurat_phase <- RunUMAP(filtered_seurat_phase,
+                                               dims = 1:20,
+                                               reduction = "pca")
+
+filtered_seurat_phase <- FindNeighbors(filtered_seurat_phase, dims = 1:2)
+
+filtered_seurat_phase <- FindClusters(filtered_seurat_phase, resolution = 0.5)
+
+# If you haven't installed UMAP, you can do so via reticulate::py_install(packages =
+# 'umap-learn')
+library(randomcoloR)
+
+set.seed(143)
+palette <- distinctColorPalette(100)
+
+# from the plot below, batches are based on the subject id. So I integrate based on subject.ids
+DimPlot(filtered_seurat_phase, group.by = "group", order = T)
+ggsave(filename=paste0(figuresdir, "/", "groupwise_umap_unintegrated",
+                       ".png"), width = 7, 
+       height = 7, units = 'in', dpi = 300)
+```
+
+Unsupervised clustering and overlaying of the group conditions, show that there could be some effects. This is evidenced by the fact that some cells cluster separately based on their tissue of origin. There are also some clusters with overlaps. CRC, LM and PBMC are different tissues. This might also explain the differences in clustering. In any ways, it will be beneficial to do data integration to see if the differences in clustering is biological or technical.
+
