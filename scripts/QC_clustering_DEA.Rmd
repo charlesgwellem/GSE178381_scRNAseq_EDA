@@ -32,9 +32,9 @@ library(openxlsx)
 library(Matrix)
 ```
 
-## 1. Preparation for quality control
+## **1. Preparation for quality control**
 
-### 1. Load in the raw data and add relevant data and metadata
+### **1. Load in the raw data, prepare it and create the seurat object**
 
 ```{r data_loading}
 # check files
@@ -56,6 +56,222 @@ colnames(raw_matrix) <- barcodes$V1
 # verify row names and column names 
 rownames(raw_matrix)[1:10]
 colnames(raw_matrix)[1:10]
+
+# save back the matrix
+saveRDS(raw_matrix,
+        "objects/raw_matrix.rds", compress = FALSE)
+
+# to create seurat object
+seurat <- CreateSeuratObject(raw_matrix,
+                             min.cells = 10,
+                             names.delim = "_")
+rm(raw_matrix)
+gc()
 ``` 
 
-The data set has been loading and prepared. Now I proceed to the quality control.
+The data set has been loaded, gene names and column names added. But looking at the column names, it appears that the last item after the last underscore is specifying if the tissue origin of the cell, i.e. if it is CRC or not. So using string separation, I will evaluate all additional information that might be hidden in the barcode string.
+
+### **2. Add cell tissue origin to the seurat object's metadata**.
+
+```{r cell_origin}
+barcodes <- barcodes %>%
+                      separate(V1, into = c("barcode", "subjectID", "tissue_origin"), sep = "_")
+seurat$subjectID <- barcodes$subjectID
+seurat$group <- barcodes$tissue_origin
+
+# save the raw seurat object
+saveRDS(seurat,
+        "objects/raw_seurat.rds", compress = FALSE)
+
+table(seurat$group)
+```
+
+**CRC** --> colorectal carcinoma primary tissue
+**LM**  --> liver metastasis
+**PBMC** --> Peripheral blood mononuclear cells
+
+Data set has been read in, prepared and seurat object sucessfully created and raw seurat object saved.
+
+## **Perform quality control**
+
+## Calculate percentages of genes in each cell that map tp mitochondrial or ribosomal genes.
+
+```{r mito_ribo}
+# Compute percent ribo and mito ratios
+seurat$riboRatio <- PercentageFeatureSet(object = seurat, pattern = "^RP[SL]")
+seurat$riboRatio <- seurat@meta.data$riboRatio / 100
+
+# check success of calculation
+summary(seurat$riboRatio)
+
+seurat$mitoRatio <- PercentageFeatureSet(object = seurat, pattern = "^MT")
+seurat$mitoRatio <- seurat@meta.data$mitoRatio / 100
+
+# check success of calculation
+summary(seurat$mitoRatio)
+```
+
+### Evaluate cell count per group (CRCThere are many reasons why a career in data science is attractive. For one, it's an industry with high salaries, even when compared to other s, LM, PBMC).
+
+```{r cell_counts} 
+# create path to the directories
+figuresdir <- paste0("figures/")
+figuresdir
+objectsdir <- paste0("objects/")
+objectsdir
+resultsdir <- paste0("results/")
+resultsdir 
+
+# Visualize the number of cell counts per sample
+seurat@meta.data %>% 
+     	ggplot(aes(x=group, fill=group)) + 
+     	geom_bar() +
+     	theme_classic() +
+     	theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+     	      aspect.ratio = 1) +
+     	theme(plot.title = element_text(hjust=0.5, face="bold")) +
+     	ggtitle("NCells")
+ggsave(filename=paste0(figuresdir, "/", "cell_counts_per_sample",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+The results show that most of the cells in the data set are liver metastatic cells.
+
+### Calculate the number of UMI counts per cell in each group.
+
+```{r nUMI}
+# Visualize the distribution of transcripts detected per cell via a histogram
+seurat@meta.data %>% 
+     	ggplot(aes(color=group, x=nCount_RNA, fill= group)) + 
+     	geom_density(alpha = 0.2) + 
+     	theme_classic() +
+     	scale_x_log10() + 
+     	geom_vline(xintercept = 500) +
+      theme(aspect.ratio = 1)
+ggsave(filename=paste0(figuresdir, "/", "genes_per_cell_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+Most of the UMI counts are between 500 and 100000, with a peak at 3000. The UMI counts per cell should generally be above 500, that is the low end of what we expect.
+
+### Calculate the number of genes detected per cell in each group.
+
+```{r nGenes}
+seurat@meta.data %>% 
+     	ggplot(aes(color=group, x=nFeature_RNA, fill= group)) + 
+     	geom_density(alpha = 0.2) + 
+     	scale_x_log10() + 
+     	theme_classic() +
+     	ylab("Cell density") +
+     	geom_vline(xintercept = 250)
+ggsave(filename=paste0(figuresdir, "/", "UMI_per_cell_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+
+# Visualize the distribution of genes detected per cell via boxplot
+seurat@meta.data %>% 
+     	ggplot(aes(x=group, y=log10(nCount_RNA), fill=group)) + 
+     	geom_boxplot() + 
+     	theme_classic() +
+     	theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+     	      aspect.ratio = 1) +
+     	theme(plot.title = element_text(hjust=0.5, face="bold")) +
+     	ggtitle("NCells vs NGenes")
+ggsave(filename=paste0(figuresdir, "/", "boxplot_genes_per_cell_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+We can see that most of the cells have between 800 and 1000 genes detected. It is however worth noticing that that the number of genes detected per cell is higher in the PBMCs compared to LM and CRC conditions.
+
+### Calculate relation between number of genes, number of transcripts and mitochondrial ratio per cell and group.
+
+```{r nUMI_gene}
+seurat@meta.data %>% 
+     	ggplot(aes(x=nFeature_RNA, y=nCount_RNA, color=mitoRatio)) + 
+     	geom_point() + 
+   	scale_colour_gradient(low = "gray90", high = "black") +
+     	stat_smooth(method=lm) +
+     	scale_x_log10() + 
+     	scale_y_log10() + 
+     	theme_classic() +
+     	geom_vline(xintercept = 500) +
+     	geom_hline(yintercept = 250) +
+     	facet_wrap(~group) +
+      theme(aspect.ratio = 1)
+ggsave(filename=paste0(figuresdir, "/", "mitoratio_genes_and_UMI_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+When we look at the four quadrants of each group, wee see that the upper left quadrant of the cells from the CRC and LM samples, have cells that have a high amount of transcripts but a low number of genes detected. They also have very high percentages of their genes being of mitochondrial origin. This might reflect dead or dying cells. But we also see that the cells have high nUMI counts, so do not meet the criteria of dying cells, that usually have low transcript numbers.  It might also be a cell type, that have high use of mitochondrial activity and have very few active genes that code for a large number of transcripts. The phenomenon described above is visibly is absent in the PBMC sample. These inconclusive observations will be kept in mind during subsequent analyses.
+
+### Visualise the mitochondrial counts ratio.
+
+```{r Mitochondrial counts ratio, echo=FALSE}
+# Visualize the distribution of mitochondrial gene expression detected per cell
+seurat@meta.data %>% 
+     	ggplot(aes(color=group, x=mitoRatio, fill=group)) + 
+     	geom_density(alpha = 0.2) + 
+     	scale_x_log10() + 
+     	theme_classic() +
+     	geom_vline(xintercept = 0.1) +
+      theme(aspect.ratio = 1)
+ggsave(filename=paste0(figuresdir, "/", "mitogenes_per_cell_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+
+``` 
+
+The results show a unimodal distribution of mitochondrial ratios per cell within each group. Intuitively this should reflect reduced number of dead cells. If we had a large number of dead cells, we would have a bimodal distribution of mitochondrial ratio counts. I will select all cells with mitoRatio < 0.1.
+
+### Calculate and visualise complexity.
+
+This metric is to assess the ratio of the number of genes to transcripts. it gives an idea about complexity. Do we have a few very active genes that code for a high number of transcripts? If it is the case, are the less complex cell such as RBCs or may be some cell type that suffered from faulty sequencing or library preparation process.
+
+```{r Complexity}
+# Add number of genes per UMI for each cell to metadata
+seurat$log10GenesPerUMI <- log10(seurat$nFeature_RNA) / log10(seurat$nCount_RNA)
+
+# Visualize the overall complexity of the gene expression by visualizing the genes detected per UMI
+seurat@meta.data %>%
+     	ggplot(aes(x=log10GenesPerUMI, color = group, fill=group)) +
+     	geom_density(alpha = 0.2) +
+     	theme_classic() +
+     	geom_vline(xintercept = 0.8)
+ggsave(filename=paste0(figuresdir, "/", "complexity_of_gene_expression_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+ All cells are highly complex, i.e. complexity score greater than 0.8. All samples practically have their peak in the same location.
+ 
+ 
+### Cell filtering to remove low quality cells.
+
+```{r cell-level filtering}
+# inspect metadata
+head(seurat@meta.data)
+
+# Filter out low quality reads using selected thresholds - these will change with experiment
+filtered_seurat <- subset(x = seurat, 
+                         subset= (nCount_RNA >= 500) & 
+                           (nFeature_RNA >= 250) & 
+                           (log10GenesPerUMI > 0.80) & 
+                           (mitoRatio < 0.10))
+
+dim(filtered_seurat) # 22657 123207
+
+saveRDS(filtered_seurat, "rawData/cell_filtered_seurat.rds",
+        comp)
+
+rm(seurat)
+gc()
+``` 
+
+
+
+
+
