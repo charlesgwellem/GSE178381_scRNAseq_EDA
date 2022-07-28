@@ -86,15 +86,15 @@ saveRDS(seurat,
 table(seurat$group)
 ```
 
-**CRC** --> colorectal carcinoma primary tissue
-**LM**  --> liver metastasis
-**PBMC** --> Peripheral blood mononuclear cells
+**CRC** are the colorectal carcinoma primary tissue,
+**LM** are the liver metastasis tissue
+**PBMC** are the Peripheral blood mononuclear cells
 
 Data set has been read in, prepared and seurat object sucessfully created and raw seurat object saved.
 
 ## **Perform quality control**
 
-## Calculate percentages of genes in each cell that map tp mitochondrial or ribosomal genes.
+## **Calculate percentages of genes in each cell that map tp mitochondrial or ribosomal genes.**
 
 ```{r mito_ribo}
 # Compute percent ribo and mito ratios
@@ -111,7 +111,7 @@ seurat$mitoRatio <- seurat@meta.data$mitoRatio / 100
 summary(seurat$mitoRatio)
 ```
 
-### Evaluate cell count per group (CRCThere are many reasons why a career in data science is attractive. For one, it's an industry with high salaries, even when compared to other s, LM, PBMC).
+### **Evaluate cell count per group (CRCThere are many reasons why a career in data science is attractive. For one, it's an industry with high salaries, even when compared to other s, LM, PBMC).**
 
 ```{r cell_counts} 
 # create path to the directories
@@ -138,9 +138,9 @@ ggsave(filename=paste0(figuresdir, "/", "cell_counts_per_sample",
 
 The results show that most of the cells in the data set are liver metastatic cells.
 
-### Calculate the number of UMI counts per cell in each group.
+### **Calculate the number of UMI counts per cell in each group - with histogram.**
 
-```{r nUMI}
+```{r nUMI_histo}
 # Visualize the distribution of transcripts detected per cell via a histogram
 seurat@meta.data %>% 
      	ggplot(aes(color=group, x=nCount_RNA, fill= group)) + 
@@ -156,20 +156,9 @@ ggsave(filename=paste0(figuresdir, "/", "genes_per_cell_final",
 
 Most of the UMI counts are between 500 and 100000, with a peak at 3000. The UMI counts per cell should generally be above 500, that is the low end of what we expect.
 
-### Calculate the number of genes detected per cell in each group.
+### **Calculate the number of of UMI counts per cell in each group - boxplot.**
 
-```{r nGenes}
-seurat@meta.data %>% 
-     	ggplot(aes(color=group, x=nFeature_RNA, fill= group)) + 
-     	geom_density(alpha = 0.2) + 
-     	scale_x_log10() + 
-     	theme_classic() +
-     	ylab("Cell density") +
-     	geom_vline(xintercept = 250)
-ggsave(filename=paste0(figuresdir, "/", "UMI_per_cell_final",
-                       ".png"), width = 5, 
-       height = 5, units = 'in', dpi = 300)
-
+```{r nGenes_boxplot}
 # Visualize the distribution of genes detected per cell via boxplot
 seurat@meta.data %>% 
      	ggplot(aes(x=group, y=log10(nCount_RNA), fill=group)) + 
@@ -184,9 +173,26 @@ ggsave(filename=paste0(figuresdir, "/", "boxplot_genes_per_cell_final",
        height = 5, units = 'in', dpi = 300)
 ```
 
+The results from the box plot above shows that more transcripts are detected in the PBMC group compared to the rest. This could mean a higher sequencing depth in favour of PBMCs. This will be handled during normalisation.
+
+### **Calculate the number of genes detected per cell in each group.**
+
+```{r nGenes}
+seurat@meta.data %>% 
+     	ggplot(aes(color=group, x=nFeature_RNA, fill= group)) + 
+     	geom_density(alpha = 0.2) + 
+     	scale_x_log10() + 
+     	theme_classic() +
+     	ylab("Cell density") +
+     	geom_vline(xintercept = 250)
+ggsave(filename=paste0(figuresdir, "/", "UMI_per_cell_final",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
 We can see that most of the cells have between 800 and 1000 genes detected. It is however worth noticing that that the number of genes detected per cell is higher in the PBMCs compared to LM and CRC conditions.
 
-### Calculate relation between number of genes, number of transcripts and mitochondrial ratio per cell and group.
+### **Calculate relation between number of genes, number of transcripts and mitochondrial ratio per cell and group.**
 
 ```{r nUMI_gene}
 seurat@meta.data %>% 
@@ -206,9 +212,9 @@ ggsave(filename=paste0(figuresdir, "/", "mitoratio_genes_and_UMI_final",
        height = 5, units = 'in', dpi = 300)
 ```
 
-When we look at the four quadrants of each group, wee see that the upper left quadrant of the cells from the CRC and LM samples, have cells that have a high amount of transcripts but a low number of genes detected. They also have very high percentages of their genes being of mitochondrial origin. This might reflect dead or dying cells. But we also see that the cells have high nUMI counts, so do not meet the criteria of dying cells, that usually have low transcript numbers.  It might also be a cell type, that have high use of mitochondrial activity and have very few active genes that code for a large number of transcripts. The phenomenon described above is visibly is absent in the PBMC sample. These inconclusive observations will be kept in mind during subsequent analyses.
+When we look at the four quadrants of each group, we see that the upper left quadrant of the cells from the CRC and LM samples, have cells that have a high amount of transcripts but a low number of genes detected. They also have very high percentages of their genes being of mitochondrial origin. This might reflect dead or dying cells. But we also see that the cells have high nUMI counts, so do not meet the criteria of dying cells, that usually have low transcript numbers.  It might also be a cell type, that has a high use of mitochondrial activity and have very few active genes that code for a large number of transcripts. The phenomenon described above is visibly is absent in the PBMC sample. These inconclusive observations will be kept in mind during subsequent analyses.
 
-### Visualise the mitochondrial counts ratio.
+### **Visualise the mitochondrial counts ratio.**
 
 ```{r Mitochondrial counts ratio, echo=FALSE}
 # Visualize the distribution of mitochondrial gene expression detected per cell
@@ -246,10 +252,10 @@ ggsave(filename=paste0(figuresdir, "/", "complexity_of_gene_expression_final",
        height = 5, units = 'in', dpi = 300)
 ```
 
- All cells are highly complex, i.e. complexity score greater than 0.8. All samples practically have their peak in the same location.
+ Most of the cells are highly complex, i.e. complexity score greater than 0.8. All samples practically have their peak in the same location.
  
  
-### Cell filtering to remove low quality cells.
+### **Cell filtering to remove low quality cells.**
 
 ```{r cell-level filtering}
 # inspect metadata
@@ -265,13 +271,107 @@ filtered_seurat <- subset(x = seurat,
 dim(filtered_seurat) # 22657 123207
 
 saveRDS(filtered_seurat, "rawData/cell_filtered_seurat.rds",
-        comp)
+        compress = FALSE)
 
 rm(seurat)
 gc()
 ``` 
 
 
+### **Gene filtering**
 
+#### **Visualise the most abundant gene families.**
 
+```{r gene_families}
+# Compute the relative expression of each gene per cell
+png(paste0(figuresdir, "/", "pct_genes_per_biotype", ".png"),
+     height = 8, width = 8, units = "in", res = 300)
+par(mfrow = c(1, 3),
+    mar   = c(4, 6, 1, 1))
+rel_expression <-
+  Matrix::t(Matrix::t(filtered_seurat@assays$RNA@counts) /
+            Matrix::colSums(filtered_seurat@assays$RNA@counts)) * 100
+most_expressed <-
+  sort(Matrix::rowSums(rel_expression), TRUE) / ncol(filtered_seurat)
+
+# Plot the relative expression of each gene per cell
+par(mfrow = c(1, 3),
+    mar   = c(4, 6, 1, 1))
+boxplot(as.matrix(Matrix::t(rel_expression[names(most_expressed[30:1]), ])),
+        cex        = .1,
+        las        = 1,
+        xlab       = "% total count per cell",
+        col        = scales::hue_pal()(90)[30:1],
+        horizontal = TRUE,
+        ylim       = c(0, 8))
+boxplot(as.matrix(Matrix::t(rel_expression[names(most_expressed[60:31]), ])),
+        cex        = .1,
+        las        = 1,
+        xlab       = "% total count per cell",
+        col        = scales::hue_pal()(90)[60:31],
+        horizontal = TRUE,
+        ylim       = c(0, 8))
+boxplot(as.matrix(Matrix::t(rel_expression[names(most_expressed[90:61]), ])),
+        cex        = .1,
+        las        = 1,
+        xlab       = "% total count per cell",
+        col        = scales::hue_pal()(90)[90:61],
+        horizontal = TRUE,
+        ylim       = c(0, 8))
+dev.off()
+```
+
+The results show that some genes constitute up to 10-30% of the counts from a single cell and the other top genes are mitochondrial and ribosomal genes. It is quite common that nuclear lincRNAs have correlation with quality and mitochondrial reads. Let us assemble some information about such genes, which are important for quality control and downstream filtering.
+These genes can serve several purposes in single-cell data analysis, such as computing cell quality metrics (see below), normalize data (see below) and even help account for batch effects <https://www.pnas.org/content/116/20/9775>
+
+#### ** % Gene biotype and chromosome location.**
+
+In RNA-sequencing, genes can be categorized into different groups depending on their RNA biotype. For example, “coding”, “non-coding”, “VDJ region genes” are “small interfering RNA” common gene biotypes. Besides, having information about chromosomal location might be useful to identify batch effects driven by sex chromosomes
+
+Depending on the desired type of analysis, some gene categories can be filtered out if not of interest. For single cell specifically, cell libraries are usually constructed using poly-A enrichment and therefore enriching for “protein-coding proteins”, which usually constitutes around 80-90% of all available genes.
+
+```{r gene_biotype}
+# Retrieve mouse gene annotation from ENSEMBL
+library(biomaRt)
+
+mart = biomaRt::useMart(
+  biomart = "ensembl",
+  dataset = "hsapiens_gene_ensembl",
+  host    = "https://www.ensembl.org")
+
+# Retrieve the selected attributes mouse gene annotation
+annot <- biomaRt::getBM(
+  mart       = mart,
+  attributes = c("external_gene_name", "gene_biotype", "chromosome_name"))
+
+# Match the gene names with theit respective gene biotype
+item <- annot[match(rownames(filtered_seurat@assays$RNA@counts), annot[, 1]), "gene_biotype"]
+item[is.na(item)] <- "unknown"
+
+# Match the gene names with their respective chromosome location
+item <- annot[match(rownames(filtered_seurat@assays$RNA@counts), annot[, 1]),
+              "chromosome_name"]
+item[is.na(item)] <- "unknown"
+item[!item %in% as.character(c(1:23, "X", "Y", "MT"))] <- "other"
+``` 
+
+#### **Filter and keep only the protein coding genes. **
+
+```{r protein_coding}
+# in order to focus only on protein coding genes
+
+dim(filtered_seurat) # 22657 123207
+sel <- annot[match(rownames(filtered_seurat), annot[, 1]), 2] == "protein_coding"
+genes_use <- rownames(filtered_seurat)[sel]
+genes_use <- as.character(na.omit(genes_use))
+filtered_seurat <- filtered_seurat[genes_use, ]
+dim(filtered_seurat) # 15820 123207
+
+# save filtered seurat object.
+saveRDS(filtered_seurat, 
+        "rawData/filtered_seurat.rds",
+        compress = FALSE)
+rm(rel_expression)
+gc()
+```
 
