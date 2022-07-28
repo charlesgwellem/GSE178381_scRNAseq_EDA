@@ -94,7 +94,7 @@ Data set has been read in, prepared and seurat object sucessfully created and ra
 
 ## **Perform quality control**
 
-## **Calculate percentages of genes in each cell that map tp mitochondrial or ribosomal genes.**
+### **Calculate percentages of genes in each cell that map tp mitochondrial or ribosomal genes.**
 
 ```{r mito_ribo}
 # Compute percent ribo and mito ratios
@@ -442,5 +442,77 @@ ggsave(filename=paste0(figuresdir, "/", "groupwise_umap_unintegrated",
        height = 7, units = 'in', dpi = 300)
 ```
 
-Unsupervised clustering and overlaying of the group conditions, show that there could be some effects. This is evidenced by the fact that some cells cluster separately based on their tissue of origin. There are also some clusters with overlaps. CRC, LM and PBMC are different tissues. This might also explain the differences in clustering. In any ways, it will be beneficial to do data integration to see if the differences in clustering is biological or technical.
+Unsupervised clustering and overlaying of the group conditions, shows that there could be some batch effects. This is evidenced by the fact that some cells cluster separately based on their tissue of origin. There are also some clusters with overlaps. CRC, LM and PBMC are different tissues. This might also explain the differences in clustering. In any ways, it will be beneficial to do data integration to see if the differences in clustering is biological or technical.
+
+### **to see if I need to regress out for mitochondrial genes**
+
+```{r mitochondrial gene assessment and visualisation of most varied genes}
+# Check quartile values
+summary(filtered_seurat_phase@meta.data$mitoRatio)
+
+# Turn mitoRatio into categorical factor vector based on quartile values
+filtered_seurat_phase@meta.data$mitoFr <- cut(filtered_seurat_phase@meta.data$mitoRatio, 
+                   breaks=c(-Inf, 0.02272, 0.03032 , 0.03329, Inf), 
+                   labels=c("Low","Medium","Medium high", "High"))
+
+# Plot the PCA colored by mitoFr
+DimPlot(filtered_seurat_phase,
+        reduction = "pca",
+        group.by= "mitoFr",
+        split.by = "mitoFr")
+ggsave(filename=paste0(figuresdir, "/", "mito_Fract",
+                       ".png"), width = 7, 
+       height = 7, units = 'in', dpi = 300)
+```
+
+The plot above shows that mitochondrial genes appear evenly distributed across the groups of interest. But at one of the earlier stages, there was a cell population with a high amount of mitochondrial genes. For this reason, i will like to regress out for mitochondrial genes, to avoid a situation where they influence the clustering. 
+
+```{r varies_genes}
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(filtered_seurat_phase), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(filtered_seurat_phase)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1 + plot2
+ggsave(filename=paste0(figuresdir, "/", "most_varied_genes",
+                       ".png"), width = 7, 
+       height = 7, units = 'in', dpi = 300)
+```
+
+The figures shows genes related to the fibroblast identity are the most varied genes. Heat shock proteins which are often a sign of cell stress, do not appear at the top 10 most varied genes. It also shows that these cells are in relatively good health and were well processed.
+
+## **Normalisation**
+
+I will sctransform-normalise after splitting the data in to respective libraries, which should contribute to a batch effect. I 
+I will regress out the effects of cell cycle and mitochondrial fraction as evidenced by analysis before this level.
+
+Scaling and centering assuming a poisson distribution might in some cases overfit the data, see above. One can overcome this by pooling information across genes with similar abundances in order to obtain more stable parameter estimates to be used as gene weights in the regression model. This is called “scTransform” and, in simple terms, is performing a gene-wise GLM regression using a constrained negative binomial model.
+
+I will use a ‘for loop’ to run the NormalizeData(), CellCycleScoring(), and SCTransform() on each sample, and regress out mitochondrial expression by specifying in the vars.to.regress argument of the SCTransform() function.
+
+Before I run this for loop, I know that the output can generate large R objects/variables in terms of memory. If I have a large dataset, then I might need to adjust the limit for allowable object sizes within R (Default is 500 * 1024 ^ 2 = 500 Mb) using the following code:
+
+```{r sct_normalisation}
+# increase amount of allowable subjects in R
+options(future.globals.maxSize = 4000 * 1024^2)#
+
+split_seurat <- SplitObject(filtered_seurat, split.by = "group")
+
+unique(filtered_seurat$group)
+
+split_seurat <- split_seurat[unique(filtered_seurat$group)]
+
+for (i in 1:length(split_seurat)) {
+    split_seurat[[i]] <- NormalizeData(split_seurat[[i]], verbose = TRUE)
+    split_seurat[[i]] <- CellCycleScoring(split_seurat[[i]], 
+                                          g2m.features= cc.genes.updated.2019$g2m.genes, 
+                                          s.features=cc.genes.updated.2019$s.genes)
+    
+    split_seurat[[i]]$CC.Difference <- split_seurat[[i]]$S.Score - split_seurat[[i]]$G2M.Score
+
+    split_seurat[[i]] <- SCTransform(split_seurat[[i]], variable.features.n = 5000,
+                                     vars.to.regress = c("CC.Difference", "mitoRatio"))
+}
+```
 
