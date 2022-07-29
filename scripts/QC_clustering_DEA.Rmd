@@ -30,6 +30,7 @@ library(ggplot2)
 library(tidyverse)
 library(openxlsx)
 library(Matrix)
+library(enrichR)
 ```
 
 ## **1. Preparation for quality control**
@@ -615,7 +616,7 @@ pcs <- min(co1, co2)
 pcs # 14
 ```
 
-## Clustering
+## **Clustering.**
 
 ```{r clustering}
 # Run UMAP
@@ -636,8 +637,6 @@ DimPlot(seurat_integrated)
 
 DefaultAssay(seurat_integrated) <- "RNA"
 
-DimPlot(seurat_integrated, group.by = "group") + theme(aspect.ratio = 1)
-
 # for visualisation purposes
 seurat_integrated <- NormalizeData(seurat_integrated)
 
@@ -645,5 +644,129 @@ saveRDS(seurat_integrated,
         paste0(objectsdir, 
                          "/","integrated_and_clustered", 
                          ".rds"))
+
+DimPlot(seurat_integrated, group.by = "group") + 
+  theme(aspect.ratio = 1)
+ggsave(filename=paste0(figuresdir, "/", "umap_groups",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
 ```
 
+After overlaying the groups on the UMAP, one can see that some cells cluster based on their tissue of origin. It is notably visible with cells from the CRC and PBMC tissues. These are of course different tissues and their cell components may vary. Furthermore, in a cancerous setting, tremendous genetic transformations occur such that cells may transform and actually cluster differently from normal cells of the same type.
+
+## Differential expression analysis of  between LM, PBMC and CRC tissues
+
+```{r DEA}
+# create path to the directories
+figuresdir <- paste0("figures/")
+figuresdir
+objectsdir <- paste0("objects/")
+objectsdir
+resultsdir <- paste0("results/")
+resultsdir 
+
+seurat_integrated <- readRDS(paste0(objectsdir, 
+                                   "/","integrated_and_clustered", 
+                                   ".rds"))
+
+Idents(seurat_integrated) <- seurat_integrated$group
+
+markers <- FindAllMarkers(seurat_integrated,
+                          only.pos = T,
+                          assay = "RNA",
+                          slot = "data")
+
+# write markers
+write.xlsx(markers,
+           "results/tissue_markers.xlsx",
+           rowNames = TRUE)
+
+# subset significant genes
+markers_sig <- subset(markers,
+                      p_val_adj < 0.05)
+
+# select top 10 markers
+top_10 <- markers_sig %>%
+                      group_by(cluster) %>%
+                      top_n(10, avg_log2FC)
+
+# scale all features in the seurat object.
+seurat_integrated <- ScaleData(seurat_integrated,
+                               features = rownames(seurat_integrated))
+
+# plot heatmap
+DoHeatmap(seurat_integrated, features = top_10$gene,
+          group.by = "group")
+ggsave(filename=paste0(figuresdir, "/", "heatmap_tissue_markers",
+                       ".png"), width = 5, 
+       height = 5, units = 'in', dpi = 300)
+```
+
+## **Enriched functions per group.**
+
+```{r enrichR}
+# create path to the directories
+figuresdir <- paste0("figures/")
+figuresdir
+objectsdir <- paste0("objects/")
+objectsdir
+resultsdir <- paste0("results/")
+resultsdir
+
+# read in the markers
+markers <- read.xlsx("results/tissue_markers.xlsx",
+                          rowNames = TRUE)
+
+# list data bases
+dbs <- listEnrichrDbs()
+
+tail(dbs, 100)
+
+# select relevant dbs
+dbs_keep <- c("KEGG_2021_Human", "MSigDB_Hallmark_2020",
+              "GO_Biological_Process_2021", "GO_Molecular_Function_2021", 
+              "CellMarker_Augmented_2021", "GO_Cellular_Component_2021")
+
+clusters <- unique(seurat_integrated$group)
+
+# loop through tissues and perform enrich r
+for (tissue in clusters) {
+  
+  tissue_oi <- subset(markers,
+                      cluster == tissue)
+  
+  tissue_oi_sig <- subset(tissue_oi,
+                          p_val_adj < 0.05)
+  
+  enrichr_oi <- enrichr(tissue_oi_sig$gene,
+                        dbs_keep)
+  
+  write.xlsx(enrichr_oi,
+             paste0("results/",
+                    tissue, "_pathways",
+                    ".xlsx"))
+  
+  pathway_names <- names(enrichr_oi)
+  
+  for (pathway_name in pathway_names) {
+    
+    plotEnrich(enrichr_oi[[pathway_name]]) +
+      ggtitle(paste0(tissue, "_", pathway_name)) +
+      scale_x_discrete(expand = c(0, 0)) +
+      scale_y_continuous(expand = c(0, 0)) +
+      theme(aspect.ratio = 1)
+    ggsave(filename=paste0(figuresdir, "/", tissue,"_",pathway_name,
+                       ".pdf"), width = 6, 
+       height = 6, units = 'in', dpi = 500)
+    
+  }
+  
+
+}
+```
+
+## **Session information.**
+
+```{r session_info}
+sessionInfo()
+```
