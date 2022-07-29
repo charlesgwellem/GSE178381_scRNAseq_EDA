@@ -547,7 +547,7 @@ saveRDS(seurat_integrated,
         paste0(objectsdir, 
                          "/","seurat_filtered_and_integrated", 
                          ".rds"),
-        compressm = TRUE)
+        compress = FALSE)
 
 rm(integ_anchors, seurat_rna, split_seurat, seurat)
 gc()
