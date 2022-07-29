@@ -727,42 +727,12 @@ dbs_keep <- c("KEGG_2021_Human", "MSigDB_Hallmark_2020",
               "GO_Biological_Process_2021", "GO_Molecular_Function_2021", 
               "CellMarker_Augmented_2021", "GO_Cellular_Component_2021")
 
-clusters <- unique(seurat_integrated$group)
+# create a function to find enrichment per cluster
 
-# loop through tissues and perform enrich r
-for (tissue in clusters) {
-  
-  tissue_oi <- subset(markers,
-                      cluster == tissue)
-  
-  tissue_oi_sig <- subset(tissue_oi,
-                          p_val_adj < 0.05)
-  
-  enrichr_oi <- enrichr(tissue_oi_sig$gene,
-                        dbs_keep)
-  
-  write.xlsx(enrichr_oi,
-             paste0("results/",
-                    tissue, "_pathways",
-                    ".xlsx"))
-  
-  pathway_names <- names(enrichr_oi)
-  
-  for (pathway_name in pathway_names) {
-    
-    plotEnrich(enrichr_oi[[pathway_name]]) +
-      ggtitle(paste0(tissue, "_", pathway_name)) +
-      scale_x_discrete(expand = c(0, 0)) +
-      scale_y_continuous(expand = c(0, 0)) +
-      theme(aspect.ratio = 1)
-    ggsave(filename=paste0(figuresdir, "/", tissue,"_",pathway_name,
-                       ".pdf"), width = 6, 
-       height = 6, units = 'in', dpi = 500)
-    
-  }
-  
+source("scripts/enrich_per_clust.R")
 
-}
+enrich_per_clust(markers, dbs_keep)
+
 ```
 
 ## **Session information.**
